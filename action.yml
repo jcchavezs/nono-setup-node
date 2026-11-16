@@ -63,7 +63,7 @@ outputs:
     value: ${{ steps.setup-node.outputs.cache-matched-key }}
   node-version:
     description: The installed node version.
-    value: ${{ steps.node-shim.outputs.node-version }}
+    value: ${{ steps.node-version.outputs.node-version }}
   nono-version:
     description: The installed nono version.
     value: ${{ steps.nono-version.outputs.nono-version }}
@@ -195,7 +195,6 @@ runs:
         echo "profile-file=${profile_file}" >> "$GITHUB_OUTPUT"
 
     - name: Create nono shims for node, npm and yarn
-      id: node-shim
       shell: bash
       env:
         NONO_PROFILE_FILE: ${{ steps.nono-profile.outputs.profile-file }}
@@ -213,14 +212,20 @@ runs:
         #!/usr/bin/env bash
         # NONO_ARGS is read when the shim runs; intentionally unquoted so it word-splits.
         # shellcheck disable=SC2086
-        exec nono run --read ${shim_dir} --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
+        exec nono run --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
         EOF
           chmod +x "${shim_dir}/${tool}"
         done
 
         echo "$shim_dir" >> "$GITHUB_PATH"
 
-        # Ask node itself (through the shim) for its version.
-        node_version="$("${shim_dir}/node" --version)"
+    # A separate step so the shim dir added to GITHUB_PATH above is already on
+    # PATH and `node` resolves to the shim without invoking it by path.
+    - name: Get node version
+      id: node-version
+      shell: bash
+      run: |
+        set -euo pipefail
+        node_version="$(node --version)"
         echo "node version: $node_version"
         echo "node-version=${node_version}" >> "$GITHUB_OUTPUT"
