@@ -212,7 +212,7 @@ runs:
         #!/usr/bin/env bash
         # NONO_ARGS is read when the shim runs; intentionally unquoted so it word-splits.
         # shellcheck disable=SC2086
-        exec nono run --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
+        exec nono run --read=${shim_dir} --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
         EOF
           chmod +x "${shim_dir}/${tool}"
         done
