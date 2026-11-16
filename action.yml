@@ -177,6 +177,9 @@ runs:
             "version": "1.0.0",
             "description": "Node.js CI with controlled access"
           },
+          "commands": {
+            "allow": ["npm"]
+          },
           "groups": {
             "include": ["node_runtime"]
           },
