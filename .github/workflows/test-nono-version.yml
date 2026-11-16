@@ -1,0 +1,44 @@
+name: test-nono-version
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  requested-version-is-installed:
+    runs-on: ubuntu-latest
+    env:
+      # Deliberately different from the action's default nono-version.
+      REQUESTED_NONO_VERSION: v0.68.0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node with a requested nono version
+        id: setup
+        uses: ./
+        with:
+          node-version: 22
+          nono-version: ${{ env.REQUESTED_NONO_VERSION }}
+
+      - name: nono-version output matches the requested version
+        env:
+          NONO_VERSION_OUTPUT: ${{ steps.setup.outputs.nono-version }}
+        run: |
+          # The input is a release tag (v0.68.0); the output has no "v" prefix.
+          expected="${REQUESTED_NONO_VERSION#v}"
+          if [ "$NONO_VERSION_OUTPUT" != "$expected" ]; then
+            echo "::error::nono-version output is '$NONO_VERSION_OUTPUT', expected '$expected'"
+            exit 1
+          fi
+
+      - name: Installed nono binary is the requested version
+        env:
+          NONO_VERSION_OUTPUT: ${{ steps.setup.outputs.nono-version }}
+        run: |
+          actual="$(nono --version)"
+          echo "$actual"
+          case "$actual" in
+            *" $NONO_VERSION_OUTPUT") ;;
+            *) echo "::error::installed '$actual' does not match output '$NONO_VERSION_OUTPUT'"; exit 1 ;;
+          esac

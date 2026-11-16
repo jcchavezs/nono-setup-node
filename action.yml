@@ -46,9 +46,18 @@ outputs:
   cache-hit:
     description: A boolean value to indicate if a cache was hit.
     value: ${{ steps.setup-node.outputs.cache-hit }}
+  cache-primary-key:
+    description: The key used to restore and save the cache.
+    value: ${{ steps.setup-node.outputs.cache-primary-key }}
+  cache-matched-key:
+    description: The key of the cache that was restored. Empty when no cache is found.
+    value: ${{ steps.setup-node.outputs.cache-matched-key }}
   node-version:
     description: The installed node version.
     value: ${{ steps.setup-node.outputs.node-version }}
+  nono-version:
+    description: The installed nono version.
+    value: ${{ steps.nono-version.outputs.nono-version }}
 
 runs:
   using: composite
@@ -82,10 +91,14 @@ runs:
         curl -fsSL https://nono.sh/install.sh | sh
 
     - name: Add nono to PATH
+      id: nono-version
       shell: bash
       run: |
         echo "${RUNNER_TEMP}/nono-bin" >> "$GITHUB_PATH"
-        "${RUNNER_TEMP}/nono-bin/nono" --version
+        version_output="$("${RUNNER_TEMP}/nono-bin/nono" --version)"
+        echo "$version_output"
+        # `nono --version` prints "nono <version>"; keep only the version.
+        echo "nono-version=${version_output##* }" >> "$GITHUB_OUTPUT"
 
     # `uses:` cannot take an expression, so to make the actions/setup-node
     # version configurable we check it out at the requested ref and run it as
@@ -124,7 +137,7 @@ runs:
         shim_dir="${RUNNER_TEMP}/nono-shims"
         mkdir -p "$shim_dir"
 
-        for tool in node npm; do
+        for tool in node npm yarn pnpm; do
           # Resolve the real binary now (before the shim dir is on PATH) so
           # the shim calls it by absolute path and never recurses.
           real="$(command -v "$tool")"
