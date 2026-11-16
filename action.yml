@@ -1,8 +1,7 @@
 name: nono-setup-node
 description: >-
-  Installs Node.js via actions/setup-node and shims `node` so it runs inside
-  the nono sandbox (`nono run --profile <profile> -- node ...`). Package
-  managers run normally; their lifecycle scripts run through the shimmed `node`.
+  Installs Node.js via actions/setup-node and shims `node`, `npm` and `yarn` so they
+  run inside the nono sandbox (`nono run --profile <profile> -- <cmd> ...`).
 author: jcchavezs
 
 inputs:
@@ -195,7 +194,7 @@ runs:
         echo "nono profile: $profile_file"
         echo "profile-file=${profile_file}" >> "$GITHUB_OUTPUT"
 
-    - name: Create nono shim for node
+    - name: Create nono shims for node, npm and yarn
       shell: bash
       env:
         NONO_PROFILE_FILE: ${{ steps.nono-profile.outputs.profile-file }}
@@ -205,7 +204,7 @@ runs:
         shim_dir="${RUNNER_TEMP}/nono-shims"
         mkdir -p "$shim_dir"
 
-        for tool in node; do
+        for tool in node npm yarn; do
           # Resolve the real binary now (before the shim dir is on PATH) so
           # the shim calls it by absolute path and never recurses.
           real="$(command -v "$tool")"
