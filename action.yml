@@ -137,7 +137,7 @@ runs:
         shim_dir="${RUNNER_TEMP}/nono-shims"
         mkdir -p "$shim_dir"
 
-        for tool in node npm yarn pnpm; do
+        for tool in node npm yarn; do
           # Resolve the real binary now (before the shim dir is on PATH) so
           # the shim calls it by absolute path and never recurses.
           real="$(command -v "$tool")"
