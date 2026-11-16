@@ -22,7 +22,7 @@ See [action.yml](action.yml)
     nono-version: ''
 
     # Git ref (tag, branch or SHA) of actions/setup-node to use.
-    # Default: v6
+    # Default: 949feb2413d6458794dcd2491c4babbbce0c15c1 (v7.1.0)
     setup-node-version: ''
 
     # All the inputs below are passed through to actions/setup-node.

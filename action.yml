@@ -9,8 +9,8 @@ inputs:
     description: nono release tag to install (e.g. v0.69.0). Use "latest" to install the newest release.
     default: v0.69.0
   setup-node-version:
-    description: Git ref (tag, branch or SHA) of actions/setup-node to use, e.g. v6, v5.0.0 or a commit SHA.
-    default: v6
+    description: Git ref (tag, branch or SHA) of actions/setup-node to use, e.g. v7.1.0 or a commit SHA. Pinned to a commit SHA by default.
+    default: 949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
   node-version:
     description: Version Spec of the version to use. Examples 12.x, 10.15.1, >=10.15.0.
   node-version-file:
