@@ -36,7 +36,7 @@ jobs:
       - name: npm install
         working-directory: ${{ env.PACKAGE_DIR }}
         env:
-          NONO_ARGS: "--allow-cwd --write ./node_modules --allow-proxy registry.npmjs.org"
+          NONO_ARGS: "--allow-cwd --write ./node_modules --allow-domain registry.npmjs.org"
         run: npm install
 
       - name: Dependencies were installed

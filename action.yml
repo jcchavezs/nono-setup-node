@@ -63,7 +63,7 @@ outputs:
     value: ${{ steps.setup-node.outputs.cache-matched-key }}
   node-version:
     description: The installed node version.
-    value: ${{ steps.setup-node.outputs.node-version }}
+    value: ${{ steps.node-shim.outputs.node-version }}
   nono-version:
     description: The installed nono version.
     value: ${{ steps.nono-version.outputs.nono-version }}
@@ -195,6 +195,7 @@ runs:
         echo "profile-file=${profile_file}" >> "$GITHUB_OUTPUT"
 
     - name: Create nono shims for node, npm and yarn
+      id: node-shim
       shell: bash
       env:
         NONO_PROFILE_FILE: ${{ steps.nono-profile.outputs.profile-file }}
@@ -218,3 +219,8 @@ runs:
         done
 
         echo "$shim_dir" >> "$GITHUB_PATH"
+
+        # Ask node itself (through the shim) for its version.
+        node_version="$("${shim_dir}/node" --version)"
+        echo "node version: $node_version"
+        echo "node-version=${node_version}" >> "$GITHUB_OUTPUT"
