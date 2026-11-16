@@ -7,7 +7,7 @@ This action wraps [actions/setup-node](https://github.com/actions/setup-node) an
 
 - Installing [nono](https://nono.sh) (and caching it by version)
 - Everything `actions/setup-node` does: downloading and caching a Node.js distribution and adding it to the PATH, caching npm/yarn/pnpm dependencies, registering problem matchers and configuring authentication for GPR or npm
-- Creating `node` and `npm` shims that are placed first in the PATH and run every invocation as `nono run --allow-cwd -- <node|npm> <args>`, so install scripts and any other code run by `node` or `npm` are sandboxed
+- Creating a `node` shim that is placed first in the PATH and runs every invocation as `nono run --profile <profile> -- node <args>`, so install scripts and any other code run by `node` are sandboxed. `npm` and `yarn` run normally (nono blocks them as startup commands), but their lifecycle scripts run through the shimmed `node`
 
 ## Usage
 
@@ -98,7 +98,7 @@ steps:
 - uses: jcchavezs/nono-setup-node@main
   with:
     node-version: 24
-- run: npm ci # runs as: nono run --allow-cwd -- npm ci
+- run: npm ci # npm runs normally; lifecycle scripts run through the sandboxed node
 - run: npm test
 ```
 
@@ -113,7 +113,7 @@ steps:
 
 1. **nono** is installed with `curl -fsSL https://nono.sh/install.sh | sh` into `$RUNNER_TEMP/nono-bin`, which is added to the PATH. When `nono-version` is a pinned tag, the directory is cached with `actions/cache` under the key `nono-<os>-<arch>-<nono-version>`, so the installer only runs on a cache miss. `latest` (or an empty value) always runs the installer and is never cached.
 2. **actions/setup-node** is checked out at `setup-node-version` into `.nono-setup-node/setup-node` in the workspace and run as a local action (a composite action cannot use an expression in `uses:`) with all the inputs you provided.
-3. **Shims** for `node` and `npm` are written to `$RUNNER_TEMP/nono-shims` and prepended to the PATH. Each shim resolves the real binary beforehand and executes `nono run --allow-cwd ${NONO_ARGS} -- <real binary> "$@"`.
+3. **A shim** for `node` is written to `$RUNNER_TEMP/nono-shims` and prepended to the PATH. The shim resolves the real binary beforehand and executes `nono run --profile <profile> ${NONO_ARGS:---allow-cwd} -- <real binary> "$@"`.
 
 > [!NOTE]
 > The shims are bash scripts: Linux and macOS runners are supported, Windows runners are not.
@@ -122,16 +122,17 @@ steps:
 
 ## Customizing the sandbox with `NONO_ARGS`
 
-The content of the `NONO_ARGS` environment variable is passed to `nono run` every time a shim runs. It is split on whitespace, so arguments containing spaces are not supported. Use it to select a nono profile or grant extra access:
+The content of the `NONO_ARGS` environment variable is passed to `nono run` every time the shim runs. It is split on whitespace, so arguments containing spaces are not supported. Use it to grant extra access (select a profile with the `nono-profile` or `nono-profile-file` inputs instead of `--profile`):
 
 ```yaml
 env:
-  NONO_ARGS: --profile ${{ github.workspace }}/nono-profile.json
+  NONO_ARGS: --allow-cwd --allow-proxy registry.npmjs.org
 steps:
 - uses: actions/checkout@v5
 - uses: jcchavezs/nono-setup-node@main
   with:
     node-version: 24
+    nono-profile-file: nono-profile.json
 - run: npm ci
 ```
 

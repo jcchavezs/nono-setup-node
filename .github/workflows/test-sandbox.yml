@@ -8,9 +8,6 @@ on:
 jobs:
   npm-ci-reads-allowed-and-denied-folders:
     runs-on: ubuntu-latest
-    env:
-      # Profile allows reading ~/nono-test/allowed and denies ~/nono-test/denied.
-      NONO_ARGS: --profile ${{ github.workspace }}/test/sandbox/nono-profile.json
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -25,6 +22,8 @@ jobs:
         uses: ./
         with:
           node-version: 22
+          # Profile allows reading ~/nono-test/allowed and denies ~/nono-test/denied.
+          nono-profile-file: test/sandbox/nono-profile.json
 
       # The preinstall script (test/sandbox/check-access.js) reads both folders
       # inside the sandbox: the allowed one must succeed, the denied one must

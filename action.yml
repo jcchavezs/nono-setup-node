@@ -1,7 +1,8 @@
 name: nono-setup-node
 description: >-
-  Installs Node.js via actions/setup-node and shims `node` and `npm` so they
-  run inside the nono sandbox (`nono run --allow-cwd -- <cmd> ...`).
+  Installs Node.js via actions/setup-node and shims `node` so it runs inside
+  the nono sandbox (`nono run --profile <profile> -- node ...`). Package
+  managers run normally; their lifecycle scripts run through the shimmed `node`.
 author: jcchavezs
 
 inputs:
@@ -41,6 +42,15 @@ inputs:
     description: Used to specify an alternative mirror to download Node.js binaries from.
   mirror-token:
     description: The token used as Authorization header when fetching from the mirror.
+  nono-profile:
+    description: >-
+      Inline nono profile (JSON). It is written to ${RUNNER_TEMP}/nono-profiles
+      and passed to nono with --profile. Mutually exclusive with
+      nono-profile-file. Defaults to a built-in "node-ci" profile.
+  nono-profile-file:
+    description: >-
+      Path to a nono profile file (relative to the workspace or absolute),
+      passed to nono with --profile. Mutually exclusive with nono-profile.
 
 outputs:
   cache-hit:
@@ -129,15 +139,73 @@ runs:
         mirror: ${{ inputs.mirror }}
         mirror-token: ${{ inputs.mirror-token }}
 
-    - name: Create nono shims for node and npm
+    - name: Create nono profile
+      id: nono-profile
       shell: bash
+      env:
+        INPUT_NONO_PROFILE: ${{ inputs.nono-profile }}
+        INPUT_NONO_PROFILE_FILE: ${{ inputs.nono-profile-file }}
+      run: |
+        set -euo pipefail
+
+        if [ -n "$INPUT_NONO_PROFILE" ] && [ -n "$INPUT_NONO_PROFILE_FILE" ]; then
+          echo "::error::The inputs nono-profile and nono-profile-file are mutually exclusive"
+          exit 1
+        fi
+
+        profile_dir="${RUNNER_TEMP}/nono-profiles"
+        mkdir -p "$profile_dir"
+
+        if [ -n "$INPUT_NONO_PROFILE_FILE" ]; then
+          # Relative paths are resolved against the workspace.
+          case "$INPUT_NONO_PROFILE_FILE" in
+            /*) profile_file="$INPUT_NONO_PROFILE_FILE" ;;
+            *) profile_file="${GITHUB_WORKSPACE}/${INPUT_NONO_PROFILE_FILE}" ;;
+          esac
+          if [ ! -f "$profile_file" ]; then
+            echo "::error::nono-profile-file not found: $profile_file"
+            exit 1
+          fi
+        else
+          profile_file="${profile_dir}/node-ci.json"
+          if [ -n "$INPUT_NONO_PROFILE" ]; then
+            printf '%s\n' "$INPUT_NONO_PROFILE" > "$profile_file"
+          else
+            cat > "$profile_file" <<'EOF'
+        {
+          "meta": {
+            "name": "node-ci",
+            "version": "1.0.0",
+            "description": "Node.js CI with controlled access"
+          },
+          "groups": {
+            "include": ["node_runtime"]
+          },
+          "filesystem": {
+            "allow": ["$HOME/.npm"],
+            "read_file": ["$HOME/.gitconfig"]
+          },
+          "workdir": { "access": "readwrite" },
+          "interactive": false
+        }
+        EOF
+          fi
+        fi
+
+        echo "nono profile: $profile_file"
+        echo "profile-file=${profile_file}" >> "$GITHUB_OUTPUT"
+
+    - name: Create nono shim for node
+      shell: bash
+      env:
+        NONO_PROFILE_FILE: ${{ steps.nono-profile.outputs.profile-file }}
       run: |
         set -euo pipefail
 
         shim_dir="${RUNNER_TEMP}/nono-shims"
         mkdir -p "$shim_dir"
 
-        for tool in node npm yarn; do
+        for tool in node; do
           # Resolve the real binary now (before the shim dir is on PATH) so
           # the shim calls it by absolute path and never recurses.
           real="$(command -v "$tool")"
@@ -145,7 +213,7 @@ runs:
         #!/usr/bin/env bash
         # NONO_ARGS is read when the shim runs; intentionally unquoted so it word-splits.
         # shellcheck disable=SC2086
-        exec nono run \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
+        exec nono run --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
         EOF
           chmod +x "${shim_dir}/${tool}"
         done
