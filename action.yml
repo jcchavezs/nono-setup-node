@@ -208,11 +208,14 @@ runs:
           # Resolve the real binary now (before the shim dir is on PATH) so
           # the shim calls it by absolute path and never recurses.
           real="$(command -v "$tool")"
+          # Grant read access to the install root (e.g. .../node/22.x/x64) so the
+          # binary and its lib/ (npm, corepack) are readable inside the sandbox.
+          real_root="$(dirname "$(dirname "$real")")"
           cat > "${shim_dir}/${tool}" <<EOF
         #!/usr/bin/env bash
         # NONO_ARGS is read when the shim runs; intentionally unquoted so it word-splits.
         # shellcheck disable=SC2086
-        exec nono run --read=${shim_dir} --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
+        exec nono run --read=${real_root} --profile "${NONO_PROFILE_FILE}" \${NONO_ARGS:---allow-cwd} -- "${real}" "\$@"
         EOF
           chmod +x "${shim_dir}/${tool}"
         done
