@@ -1,0 +1,11 @@
+{
+  "name": "nono-setup-node-test-sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "preinstall": "node check-access.js"
+  },
+  "dependencies": {
+    "is-number": "7.0.0"
+  }
+}

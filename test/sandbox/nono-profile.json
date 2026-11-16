@@ -1,0 +1,14 @@
+{
+  "meta": {
+    "name": "nono-setup-node-test",
+    "description": "Allows reading one fixture folder and denies another"
+  },
+  "extends": "node-dev",
+  "filesystem": {
+    "read": ["$HOME/nono-test/allowed"],
+    "deny": ["$HOME/nono-test/denied"]
+  },
+  "workdir": {
+    "access": "readwrite"
+  }
+}

@@ -1,0 +1,44 @@
+name: test-install
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      package-dir:
+        description: Directory containing the package.json to install
+        default: test/install
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_DIR: ${{ inputs.package-dir || 'test/install' }}
+      # Extra flags for `nono run` in the node/npm shims.
+      NONO_ARGS: --profile node-dev
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node with nono shims
+        uses: ./
+        with:
+          node-version: 22
+
+      - name: Shims are first in PATH
+        run: |
+          for tool in node npm; do
+            case "$(command -v "$tool")" in
+              "$RUNNER_TEMP"/nono-shims/*) echo "$tool is shimmed" ;;
+              *) echo "::error::$tool is not shimmed: $(command -v "$tool")"; exit 1 ;;
+            esac
+          done
+
+      - name: npm install
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm install
+
+      - name: Dependencies were installed
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: |
+          test -d node_modules
+          node -e 'console.log("node ok", process.version)'

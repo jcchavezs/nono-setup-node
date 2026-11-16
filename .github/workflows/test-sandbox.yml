@@ -1,0 +1,43 @@
+name: test-sandbox
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  npm-ci-reads-allowed-and-denied-folders:
+    runs-on: ubuntu-latest
+    env:
+      # Profile allows reading ~/nono-test/allowed and denies ~/nono-test/denied.
+      NONO_ARGS: --profile ${{ github.workspace }}/test/sandbox/nono-profile.json
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create fixture folders
+        run: |
+          for d in allowed denied; do
+            mkdir -p "$HOME/nono-test/$d"
+            echo "$d" > "$HOME/nono-test/$d/file.txt"
+          done
+
+      - name: Setup node with nono shims
+        uses: ./
+        with:
+          node-version: 22
+
+      # The preinstall script (test/sandbox/check-access.js) reads both folders
+      # inside the sandbox: the allowed one must succeed, the denied one must
+      # fail, otherwise the script (and so npm ci) exits non-zero.
+      - name: npm ci
+        working-directory: test/sandbox
+        run: npm ci
+
+      - name: Denied folder is also unreadable from a sandboxed node
+        working-directory: test/sandbox
+        run: |
+          if node -e 'require("fs").readFileSync(process.env.HOME + "/nono-test/denied/file.txt")' 2>/dev/null; then
+            echo "::error::denied folder was readable"
+            exit 1
+          fi
+          node -e 'require("fs").readFileSync(process.env.HOME + "/nono-test/allowed/file.txt")'

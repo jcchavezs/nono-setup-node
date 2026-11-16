@@ -1,0 +1,140 @@
+name: nono-setup-node
+description: >-
+  Installs Node.js via actions/setup-node and shims `node` and `npm` so they
+  run inside the nono sandbox (`nono run --allow-cwd -- <cmd> ...`).
+author: jcchavezs
+
+inputs:
+  nono-version:
+    description: nono release tag to install (e.g. v0.69.0). Use "latest" to install the newest release.
+    default: v0.69.0
+  setup-node-version:
+    description: Git ref (tag, branch or SHA) of actions/setup-node to use, e.g. v6, v5.0.0 or a commit SHA.
+    default: v6
+  node-version:
+    description: Version Spec of the version to use. Examples 12.x, 10.15.1, >=10.15.0.
+  node-version-file:
+    description: File containing the version Spec of the version to use (package.json, .nvmrc, .node-version, .tool-versions).
+  architecture:
+    description: Target architecture for Node to use. Examples x86, x64. Will use system architecture by default.
+  check-latest:
+    description: Set this option if you want the action to check for the latest available version that satisfies the version spec.
+    default: "false"
+  registry-url:
+    description: Optional registry to set up for auth. Sets up the .npmrc to publish to this registry.
+  scope:
+    description: Optional scope for authenticating against scoped registries.
+  token:
+    description: Used to pull node distributions from node-versions. Since there's a default, this is typically not supplied by the user.
+    default: ${{ github.server_url == 'https://github.com' && github.token || '' }}
+  always-auth:
+    description: Set always-auth in npmrc.
+    default: "false"
+  cache:
+    description: Used to specify a package manager for caching in the default directory. Supported values npm, yarn, pnpm.
+  package-manager-cache:
+    description: Set to false to disable automatic caching based on the package.json `packageManager` field.
+    default: "true"
+  cache-dependency-path:
+    description: Used to specify the path to a dependency file (package-lock.json, yarn.lock, etc.).
+  mirror:
+    description: Used to specify an alternative mirror to download Node.js binaries from.
+  mirror-token:
+    description: The token used as Authorization header when fetching from the mirror.
+
+outputs:
+  cache-hit:
+    description: A boolean value to indicate if a cache was hit.
+    value: ${{ steps.setup-node.outputs.cache-hit }}
+  node-version:
+    description: The installed node version.
+    value: ${{ steps.setup-node.outputs.node-version }}
+
+runs:
+  using: composite
+  steps:
+    # Pinned versions are cached by version. "latest" (or empty) is never
+    # cached, since it would otherwise stay stuck on the first release seen.
+    - name: Cache nono
+      id: cache-nono
+      if: inputs.nono-version != '' && inputs.nono-version != 'latest'
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ${{ runner.temp }}/nono-bin
+        key: nono-${{ runner.os }}-${{ runner.arch }}-${{ inputs.nono-version }}
+
+    - name: Install nono
+      if: steps.cache-nono.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        INPUT_NONO_VERSION: ${{ inputs.nono-version }}
+      run: |
+        set -euo pipefail
+
+        install_dir="${RUNNER_TEMP}/nono-bin"
+        mkdir -p "$install_dir"
+
+        export NONO_INSTALL_DIR="$install_dir"
+        if [ -n "$INPUT_NONO_VERSION" ] && [ "$INPUT_NONO_VERSION" != "latest" ]; then
+          export NONO_VERSION="$INPUT_NONO_VERSION"
+        fi
+
+        curl -fsSL https://nono.sh/install.sh | sh
+
+    - name: Add nono to PATH
+      shell: bash
+      run: |
+        echo "${RUNNER_TEMP}/nono-bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/nono-bin/nono" --version
+
+    # `uses:` cannot take an expression, so to make the actions/setup-node
+    # version configurable we check it out at the requested ref and run it as
+    # a local action.
+    - name: Fetch actions/setup-node
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: actions/setup-node
+        ref: ${{ inputs.setup-node-version }}
+        path: .nono-setup-node/setup-node
+        persist-credentials: false
+
+    - name: Setup Node.js
+      id: setup-node
+      uses: ./.nono-setup-node/setup-node
+      with:
+        node-version: ${{ inputs.node-version }}
+        node-version-file: ${{ inputs.node-version-file }}
+        architecture: ${{ inputs.architecture }}
+        check-latest: ${{ inputs.check-latest }}
+        registry-url: ${{ inputs.registry-url }}
+        scope: ${{ inputs.scope }}
+        token: ${{ inputs.token }}
+        always-auth: ${{ inputs.always-auth }}
+        cache: ${{ inputs.cache }}
+        package-manager-cache: ${{ inputs.package-manager-cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+        mirror: ${{ inputs.mirror }}
+        mirror-token: ${{ inputs.mirror-token }}
+
+    - name: Create nono shims for node and npm
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        shim_dir="${RUNNER_TEMP}/nono-shims"
+        mkdir -p "$shim_dir"
+
+        for tool in node npm; do
+          # Resolve the real binary now (before the shim dir is on PATH) so
+          # the shim calls it by absolute path and never recurses.
+          real="$(command -v "$tool")"
+          cat > "${shim_dir}/${tool}" <<EOF
+        #!/usr/bin/env bash
+        # NONO_ARGS is read when the shim runs; intentionally unquoted so it word-splits.
+        # shellcheck disable=SC2086
+        exec nono run \${NONO_ARGS:-} -- "${real}" "\$@"
+        EOF
+          chmod +x "${shim_dir}/${tool}"
+        done
+
+        echo "$shim_dir" >> "$GITHUB_PATH"
